@@ -1,1 +1,37 @@
-.
+name: Compile for k3
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v1
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v1
+
+    - name: Cache OpenWrt SDK
+      uses: actions/cache@v3
+      with:
+        path: /opt/openwrt-sdk/
+        key: ${{ runner.os }}-openwrt-sdk-${{ hashFiles('**/openwrt-sdk.tar.xz') }}
+        restore-keys: |
+          ${{ runner.os }}-openwrt-sdk-
+
+    - name: Download OpenWrt SDK
+      if: steps.cache.outputs.cache-hit != 'true'
+      run: |
+        wget -qO /opt/sdk.tar.xz https://downloads.open

@@ -1,1 +1,60 @@
-aa
+name: Compile for k3
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v1
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v1
+
+    - name: Cache OpenWrt SDK
+      uses: actions/cache@v2
+      with:
+        path: /opt/openwrt-sdk/
+        key: ${{ runner.os }}-openwrt-sdk-${{ hashFiles('**/openwrt-sdk.tar.xz') }}
+        restore-keys: |
+          ${{ runner.os }}-openwrt-sdk-
+
+    - name: Download OpenWrt SDK
+      if: steps.cache.outputs.cache-hit != 'true'
+      run: |
+        wget -qO /opt/sdk.tar.xz https://downloads.openwrt.org/releases/22.03.5/targets/rockchip/armv8/openwrt-sdk-22.03.5-rockchip-armv8_gcc-11.2.0_musl.Linux-x86_64.tar.xz
+        tar -xJf /opt/sdk.tar.xz -C /opt
+
+    - name: Clone luci-app-easytier
+      run: |
+        git clone https://github.com/EasyTier/luci-app-easytier.git /opt/luci-app-easytier
+        cp -R /opt/luci-app-easytier/luci-app-easytier /opt/openwrt-sdk*/package
+
+    - name: Update and install feeds
+      run: |
+        cd /opt/openwrt-sdk*
+        ./scripts/feeds update -a
+        make defconfig
+
+    - name: Compile luci-app-easytier
+      run: |
+        cd /opt/openwrt-sdk*
+        make package/luci-app-easytier/compile V=s -j1
+
+    - name: Upload compiled package
+      uses: actions/upload-artifact@v2
+      with:
+        name: luci-app-easytier
+        path: /opt/openwrt-sdk*/bin/packages/aarch64_generic/base/*.ipk
